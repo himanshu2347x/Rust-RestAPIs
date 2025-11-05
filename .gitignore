@@ -1,0 +1,20 @@
+# Rust build files
+/target/
+
+# Environment files
+.env
+.env.*
+
+# Backup and logs
+*.rs.bk
+*.log
+
+# IDE / Editor stuff
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Cargo (optional)
+# Ignore lock file for libraries only
+# Cargo.lock
