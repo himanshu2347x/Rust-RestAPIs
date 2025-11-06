@@ -19,3 +19,9 @@ pub struct  UpdateTodoRequest{
     pub title:Option<String>,
     pub completed:Option<bool>
 }
+
+#[derive(Serialize,Deserialize)]
+pub struct TodoQuery{
+    pub completed:Option<bool>,
+    pub title:Option<String>
+}

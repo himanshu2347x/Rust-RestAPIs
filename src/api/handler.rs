@@ -1,14 +1,14 @@
-use axum::{Json, extract::{Path, State, path}, http::StatusCode};
+use axum::{Json, extract::{Path, Query, State, Form}, http::StatusCode};
 use futures::{TryStreamExt};
 use mongodb::{Database, bson::{doc, oid::ObjectId}};
 use serde_json::{Value, json};
 
-use crate::{models::todo::{CreateTodoRequest, Todo, UpdateTodoRequest}, utils::error::AppError};
+use crate::{models::todo::{CreateTodoRequest, Todo, TodoQuery, UpdateTodoRequest}, utils::error::AppError};
 
 
 
 pub async fn create_todo(State(db):State<Database>,
-Json(payload):Json<CreateTodoRequest>
+Form(payload):Form<CreateTodoRequest>
 )->Result<(StatusCode,Json<Value>),AppError>{
     if payload.title.trim().is_empty() {
         return Err(AppError::ValidationError("Title cannot be empty".to_string()));
@@ -40,24 +40,44 @@ return Ok((
 
 }
 
-pub async fn get_all_todos(
-    State(db):State<Database>
+pub async fn get_todos_by_filter(
+    State(db):State<Database>,
+    Query(params):Query<TodoQuery>
 )->Result<(StatusCode,Json<Value>),AppError>{
+
+    let mut filter_doc = doc!{};
    
-   let collection=db.collection::<Todo>("todos");
+  if let Some(completed)=params.completed{
+    filter_doc.insert("completed",completed);
+  }
 
-let res = collection.find(doc! {}).await?;
+  if let Some(title)=params.title{
 
-let todos :Vec<Todo>=res.try_collect().await?;
+    if title.trim().is_empty(){
+        return Err(AppError::ValidationError("Title cannot be empty".to_string()));
+    }
+    filter_doc.insert("title", title);
+  }
+  let collection = db.collection::<Todo>("todos");
+
+  let result = collection.find(filter_doc).await?;
+
+  let todos:Vec<Todo>=result.try_collect().await?;
+
+  if todos.is_empty(){
+    return Err(AppError::TodoNotFound("No todos found".to_string()));
+  }
+
+return Ok((StatusCode::OK,
+Json(json!({
+    "message":"Todos fetched successfully",
+    "todos":todos       
+}))));
 
 
-    return Ok((StatusCode::OK,
-    Json(json!({
-        "message":"Todo fetched successsfuly",
-         "total_todos":todos.len(),
-         "todos":todos
-    }))));
 }
+
+
 pub async fn get_todo(State(db):State<Database>,
 Path(id):Path<String>
 )->Result<(StatusCode,Json<Value>),AppError>{
