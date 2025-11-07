@@ -7,7 +7,7 @@ pub enum AppError{
   DatabaseError(mongodb::error::Error),
   InvalidObjectId(String),
   TodoNotFound(String),
-  ValidationError(String)  
+  ValidationError(String),
 }
 
 impl IntoResponse for AppError {

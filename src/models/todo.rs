@@ -25,3 +25,33 @@ pub struct TodoQuery{
     pub completed:Option<bool>,
     pub title:Option<String>
 }
+#[derive(Serialize,Deserialize)]
+pub struct User{
+     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id:Option<ObjectId>,
+    pub name :String,
+    pub email:String,
+    pub password:String
+}
+
+#[derive(Serialize,Deserialize)]
+pub struct RegisterUser{
+    pub name :String,
+    pub email:String,
+    pub password:String
+
+}
+
+#[derive(Serialize,Deserialize)]
+pub struct UserResponse{
+    pub id:Option<ObjectId>,
+    pub name:String,
+    pub email:String
+}
+
+
+#[derive(Serialize,Deserialize)]
+pub struct LoginUser{
+    pub email:String,
+    pub password:String
+}

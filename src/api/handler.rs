@@ -1,9 +1,10 @@
 use axum::{Json, extract::{Path, Query, State, Form}, http::StatusCode};
+use bcrypt::{DEFAULT_COST, hash, verify};
 use futures::{TryStreamExt};
 use mongodb::{Database, bson::{doc, oid::ObjectId}};
 use serde_json::{Value, json};
 
-use crate::{models::todo::{CreateTodoRequest, Todo, TodoQuery, UpdateTodoRequest}, utils::error::AppError};
+use crate::{models::todo::{CreateTodoRequest, LoginUser, RegisterUser, Todo, TodoQuery, UpdateTodoRequest, User, UserResponse}, utils::error::AppError};
 
 
 
@@ -184,4 +185,105 @@ if result.deleted_count==0{
         }))
     ));
 
+}
+
+pub async fn register_user(
+    State(db):State<Database>,
+    Form(payload):Form<RegisterUser>
+)->Result<(StatusCode,Json<Value>),AppError>{
+        let collection = db.collection::<User>("users");
+    // Registration logic goes here
+ if payload.name.trim().is_empty(){
+    return Err(AppError::ValidationError("Name cannot be empty".to_string()));
+ }
+    if payload.email.trim().is_empty(){
+        return Err(AppError::ValidationError("Email cannot be empty".to_string()));
+    }
+    if let Some(_) = collection.find_one(doc!{"email":&payload.email}).await?{
+    return Err(AppError::ValidationError("User Already exists".to_string()))}
+
+    if payload.password.trim().is_empty(){        
+        return Err(AppError::ValidationError("Password cannot be empty".to_string()));
+    }
+
+    let hashed_password = hash(&payload.password, DEFAULT_COST)
+        .map_err(|_| AppError::ValidationError("Failed to hash password".to_string()))?;
+
+    let new_user =User{
+        id:None,
+        name:payload.name,
+        email:payload.email,
+        password:hashed_password
+    };
+    let res = collection.insert_one(&new_user).await?;
+
+    let user_response = UserResponse{
+        id:Some(res.inserted_id.as_object_id().unwrap()),
+        name:new_user.name,
+        email:new_user.email
+    };
+
+    Ok((StatusCode::CREATED,
+    Json(json!({
+        "message":"User registered successfully",
+        "user":user_response
+    }))))
+}
+
+pub async fn login_user(State(db):State<Database>,
+Form(payload):Form<LoginUser>)->Result<(StatusCode,Json<Value>),AppError>{
+
+    let collection = db.collection::<User>("users");
+
+    if payload.email.trim().is_empty()
+{
+    return Err(AppError::ValidationError("Email cannot be empty".to_string()));
+}
+let user = collection.find_one(doc!{"email":&payload.email}).await?;
+
+let user = match user {
+    Some(user) => user,
+    None => return Err(AppError::ValidationError("User does not exist".to_string())),
+};
+
+if payload.password.trim().is_empty(){
+    return Err(AppError::ValidationError("Password cannot be empty".to_string()));
+}
+
+let password_match = verify(&payload.password, &user.password)
+    .map_err(|_| AppError::ValidationError("Password verification failed".to_string()))?;
+
+if !password_match{
+    return Err(AppError::ValidationError("Invalid password".to_string()));  
+}
+
+let user_response = UserResponse{
+    id:user.id,
+    name:user.name,
+    email:user.email
+};
+
+Ok((StatusCode::OK,
+Json(json!({
+    "message":"Login successful",
+    "user":user_response
+}))))
+}
+
+pub async fn get_all_users(State(db):State<Database>)->Result<(StatusCode,Json<Value>),AppError>{
+
+    let collection = db.collection::<User>("users");
+
+let result = collection.find(doc!{}).await?;
+
+let user :Vec<User>=result.try_collect().await?;
+if user.is_empty(){
+    return Err(AppError::TodoNotFound("No users found".to_string()));
+}
+
+Ok((StatusCode::OK,
+Json(json!({
+    "message":"Users fetched successfully",
+    "user":user
+}))))
 }
